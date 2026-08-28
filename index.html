@@ -608,12 +608,14 @@
     }
 
     function finishClear() {
-      const rows = clearingRows.slice().sort((a, b) => b - a);
-      for (const y of rows) {
-        board.splice(y, 1);
-        board.unshift(Array(COLS).fill(null));
-      }
-      const n = rows.length;
+      // 一次性移除所有满行：先筛出非满行，再在顶部补齐空行。
+      // 避免逐行 splice+unshift 造成的索引错位（多行同消时会漏删高位满行）。
+      const rowSet = new Set(clearingRows);
+      const kept = board.filter((_, y) => !rowSet.has(y));
+      while (kept.length < ROWS) kept.unshift(Array(COLS).fill(null));
+      for (let y = 0; y < ROWS; y++) board[y] = kept[y];
+
+      const n = clearingRows.length;
       score += LINE_SCORE[n] * level;
       lines += n;
       const newLevel = Math.floor(lines / 10) + 1;
