@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>俄罗斯方块 · Tetris</title>
 <style>
   :root {
@@ -16,6 +16,8 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html, body { height: 100%; }
+
   body {
     background: radial-gradient(1200px 600px at 50% -10%, #1c2740 0%, var(--bg) 60%);
     color: var(--text);
@@ -27,6 +29,9 @@
     padding: 20px;
     -webkit-user-select: none;
     user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
   }
 
   .game-wrap {
@@ -110,6 +115,8 @@
     cursor: pointer;
     letter-spacing: 0.5px;
     transition: filter .15s, transform .05s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   button:hover { filter: brightness(1.1); }
   button:active { transform: translateY(1px); }
@@ -137,32 +144,81 @@
   .overlay .title { font-size: 26px; font-weight: 800; letter-spacing: 1px; }
   .overlay .sub { font-size: 13px; color: var(--muted); }
 
-  /* 移动端触控按钮 */
+  /* 移动端触控按钮（默认隐藏，移动端显示） */
   .touch-controls {
     display: none;
-    gap: 8px;
-    margin-top: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
     width: 100%;
+    gap: 10px;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .touch-controls .cluster {
+    display: flex;
+    gap: 10px;
   }
   .touch-controls button {
-    min-width: 52px;
-    padding: 12px;
-    font-size: 18px;
+    min-width: 60px;
+    min-height: 54px;
+    padding: 10px 16px;
+    font-size: 22px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+  }
+  .touch-controls button:active { background: var(--panel-border); }
+
+  /* ---------- 移动端整体布局（JS 检测后为 body 添加 .mobile / .landscape） ---------- */
+  body.mobile { padding: 0; overflow: hidden; }
+
+  body.mobile .game-wrap {
+    height: 100vh;
+    height: 100dvh;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
-  @media (max-width: 520px) {
-    .game-wrap { flex-direction: column; align-items: center; gap: 14px; }
-    .side {
-      flex-direction: row;
-      flex-wrap: wrap;
-      width: 100%;
-      justify-content: center;
-    }
-    .side .panel { min-width: 90px; }
-    .touch-controls { display: flex; }
+  body.mobile .board-box {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none;
+    border-radius: 8px;
   }
+
+  body.mobile .side {
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+  }
+  body.mobile .side .panel { padding: 6px 10px; border-radius: 8px; }
+  body.mobile .side .panel h2 { display: none; }
+  body.mobile .side .stats h2 { display: inline; margin: 0 6px 0 0; font-size: 11px; letter-spacing: 0; }
+  body.mobile .stats { display: flex; flex-direction: row; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  body.mobile .stats .stat { font-size: 20px; }
+  body.mobile .stats .stat.hi { display: none; }
+  body.mobile .stats .stat small { display: inline; margin-right: 3px; font-size: 11px; }
+  body.mobile .hint { display: none; }
+  body.mobile .side button { padding: 8px 10px; font-size: 12px; }
+  body.mobile #next { width: 48px; height: 48px; }
+  body.mobile #hold { width: 64px; height: 26px; }
+  body.mobile .touch-controls { display: flex; flex: 0 0 auto; }
+
+  /* 横屏手机：棋盘居左，信息与按钮居右 */
+  body.mobile.landscape .game-wrap { flex-direction: row; align-items: stretch; }
+  body.mobile.landscape .board-box { flex: 1 1 auto; min-width: 0; }
+  body.mobile.landscape .side { flex-direction: column; flex-wrap: nowrap; width: 124px; justify-content: flex-start; }
+  body.mobile.landscape .touch-controls { flex-direction: column; width: auto; justify-content: center; }
+  body.mobile.landscape .touch-controls .cluster { flex-direction: column; }
 </style>
 </head>
 <body>
@@ -180,7 +236,7 @@
       <div class="panel stats">
         <h2>分数</h2>
         <div class="stat" id="score">0</div>
-        <div class="stat"><small>最高分</small><span id="highscore">0</span></div>
+        <div class="stat hi"><small>最高分</small><span id="highscore">0</span></div>
         <div class="stat"><small>等级</small><span id="level">1</span></div>
         <div class="stat"><small>消行</small><span id="lines">0</span></div>
       </div>
@@ -215,7 +271,7 @@
 
     // ---------- 常量 ----------
     const COLS = 10, ROWS = 20;
-    const CELL = 30;                 // 像素
+    let CELL = 30;                   // 像素（移动端自适应缩放）
     const COLORS = {
       I: "#00d7f0",
       O: "#f7d51d",
@@ -621,7 +677,7 @@
         }
       }
 
-      drawMini(nextC, queue.slice(0, 3));
+      drawMini(nextC, isMobile() ? queue.slice(0, 1) : queue.slice(0, 3));
       drawHold();
     }
 
@@ -737,23 +793,58 @@
       muteBtn.textContent = m ? "音效：开" : "音效：关";
     });
 
-    // 触屏按钮（桌面隐藏，移动端显示）
-    function touchBtn(label, fn) {
+    // 触屏按钮（桌面隐藏，移动端显示）；分左右两簇，便于双拇指操作
+    function touchBtn(parent, label, fn) {
       const b = document.createElement("button");
       b.textContent = label;
       b.addEventListener("click", fn);
-      document.querySelector(".touch-controls").appendChild(b);
+      parent.appendChild(b);
     }
-    touchBtn("◀", () => move(-1));
-    touchBtn("▶", () => move(1));
-    touchBtn("▼", () => softDrop());
-    touchBtn("↻", () => rotate(1));
-    touchBtn("⤓", () => hardDrop());
-    touchBtn("H", () => holdPiece());
+    const tc = document.querySelector(".touch-controls");
+    const tcLeft = document.createElement("div"); tcLeft.className = "cluster";
+    const tcRight = document.createElement("div"); tcRight.className = "cluster";
+    tc.appendChild(tcLeft); tc.appendChild(tcRight);
+    touchBtn(tcLeft, "◀", () => move(-1));
+    touchBtn(tcLeft, "▼", () => softDrop());
+    touchBtn(tcLeft, "▶", () => move(1));
+    touchBtn(tcRight, "↻", () => rotate(1));
+    touchBtn(tcRight, "⤓", () => hardDrop());
+    touchBtn(tcRight, "H", () => holdPiece());
+
+    // ---------- 响应式 / 移动端适配 ----------
+    function isMobile() {
+      return window.innerWidth <= 720 || window.innerHeight <= 480;
+    }
+    function applyLayout() {
+      const mobile = isMobile();
+      const boardBox = canvas.parentElement;
+      document.body.classList.toggle("mobile", mobile);
+      document.body.classList.toggle("landscape", mobile && window.innerWidth > window.innerHeight);
+      let cell = 30;
+      if (mobile) {
+        const cs = getComputedStyle(boardBox);
+        const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        const availW = boardBox.clientWidth - padX;
+        const availH = boardBox.clientHeight - padY;
+        if (availW > 0 && availH > 0) cell = Math.max(10, Math.floor(Math.min(availW / COLS, availH / ROWS)));
+      }
+      if (cell !== CELL) {
+        CELL = cell;
+        canvas.width = COLS * CELL;
+        canvas.height = ROWS * CELL;
+      }
+    }
+    window.addEventListener("resize", applyLayout);
+    window.addEventListener("orientationchange", applyLayout);
+    window.addEventListener("load", applyLayout);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", applyLayout);
+    if (window.ResizeObserver) new ResizeObserver(applyLayout).observe(canvas.parentElement);
 
     // 初始绘制
     refillQueue();
     updateStats();
+    applyLayout();
     draw();
     requestAnimationFrame(loop);
   })();
