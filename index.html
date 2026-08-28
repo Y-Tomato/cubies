@@ -203,6 +203,7 @@
       </div>
 
       <button class="ghost-btn" id="restart-btn">重新开始 (R)</button>
+      <button class="ghost-btn" id="mute-btn">音效：开</button>
     </div>
 
     <div class="touch-controls"></div>
@@ -236,6 +237,7 @@
     };
     const TYPES = ["I","O","T","S","Z","J","L"];
     const LINE_SCORE = [0, 100, 300, 500, 800]; // 0/1/2/3/4 行
+    const CLEAR_MS = 280;           // 消行动画时长
 
     // 重力：随等级下降，单位 ms/格
     function gravityFor(level) {
@@ -252,8 +254,131 @@
     let highscore = 0;
     let gameOver = false, paused = false, started = false;
     let lastDrop = 0;
+    let clearing = false;          // 消行动画进行中
+    let clearingRows = [];         // 正在消除的行
+    let clearingDone = 0;          // 动画结束时间戳
 
     try { highscore = parseInt(localStorage.getItem("tetris_high") || "0", 10) || 0; } catch (e) {}
+
+    // ---------- 音频（Web Audio API 合成，无需外部文件） ----------
+    const BGM_BPM = 150;
+    const Audio = (() => {
+      let ctx = null, master = null, bgmGain = null, sfxGain = null;
+      let muted = false;
+      let bgmTimer = null, bgmStep = 0, bgmNext = 0;
+
+      const NOTE = (() => {
+        const names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+        const m = {};
+        for (let o = 2; o <= 6; o++)
+          for (let i = 0; i < 12; i++)
+            m[names[i] + o] = 440 * Math.pow(2, o - 4 + (i - 9) / 12);
+        return m;
+      })();
+
+      // 原创 8-bit 旋律（A 小调，16 个八分音符一循环）；null = 休止
+      const MELODY = [
+        "A4","C5","E5","A5","E5","C5","E5","C5",
+        "A4","C5","F5","A5","F5","C5","G4","B4"
+      ];
+      const BASS = [
+        "A2","A3","A2","A3","E2","E3","E2","E3",
+        "F2","F3","F2","F3","G2","G3","G2","G3"
+      ];
+
+      function ensure() {
+        if (!ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          ctx = new AC();
+          master = ctx.createGain();
+          master.gain.value = muted ? 0 : 0.9;
+          master.connect(ctx.destination);
+          bgmGain = ctx.createGain();
+          bgmGain.gain.value = 0.2;
+          bgmGain.connect(master);
+          sfxGain = ctx.createGain();
+          sfxGain.gain.value = 0.5;
+          sfxGain.connect(master);
+        }
+        if (ctx.state === "suspended") ctx.resume();
+      }
+
+      function tone(freq, t, dur, type, vol, dest) {
+        if (!freq) return;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = type;
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(vol, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g);
+        g.connect(dest || sfxGain);
+        o.start(t);
+        o.stop(t + dur + 0.05);
+      }
+
+      function scheduleStep(step, t) {
+        const m = NOTE[MELODY[step]];
+        const b = NOTE[BASS[step]];
+        if (m) tone(m, t, 0.18, "square", 0.55, bgmGain);
+        if (b) tone(b, t, 0.14, "triangle", 0.9, bgmGain);
+      }
+      function tick() {
+        const stepDur = 60 / BGM_BPM / 2; // 八分音符
+        while (bgmNext < ctx.currentTime + 0.15) {
+          scheduleStep(bgmStep, bgmNext);
+          bgmNext += stepDur;
+          bgmStep = (bgmStep + 1) % MELODY.length;
+        }
+      }
+
+      function startBgm() {
+        ensure();
+        if (bgmTimer) return;
+        bgmNext = ctx.currentTime + 0.06;
+        bgmStep = 0;
+        bgmTimer = setInterval(tick, 30);
+      }
+      function stopBgm() {
+        if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+      }
+
+      function setMuted(m) {
+        muted = m;
+        if (master) master.gain.value = m ? 0 : 0.9;
+      }
+
+      function play(name) {
+        ensure();
+        const t = ctx.currentTime;
+        switch (name) {
+          case "clear":
+            [["C5",0],["E5",0.05],["G5",0.1],["C6",0.15],["E6",0.2]].forEach(([n,d]) =>
+              tone(NOTE[n], t + d, 0.16, "square", 0.4));
+            break;
+          case "drop":
+            tone(180, t, 0.08, "triangle", 0.6);
+            tone(120, t + 0.02, 0.09, "square", 0.35);
+            break;
+          case "rotate":
+            tone(NOTE["A4"], t, 0.05, "square", 0.22);
+            break;
+          case "hold":
+            tone(NOTE["E4"], t, 0.06, "triangle", 0.32);
+            break;
+          case "level":
+            [["A4",0],["C5",0.07],["E5",0.14]].forEach(([n,d]) =>
+              tone(NOTE[n], t + d, 0.12, "square", 0.3));
+            break;
+          case "over":
+            ["E4","C4","A3"].forEach((n,i) =>
+              tone(NOTE[n], t + i * 0.16, 0.3, "sawtooth", 0.32));
+            break;
+        }
+      }
+
+      return { ensure, startBgm, stopBgm, setMuted, play, isMuted: () => muted };
+    })();
 
     // ---------- DOM ----------
     const canvas = document.getElementById("board");
@@ -323,19 +448,24 @@
     }
 
     function startGame() {
+      Audio.ensure();
       board.forEach(r => r.fill(null));
       queue = [];
       held = null;
       score = 0; lines = 0; level = 1;
       gameOver = false; paused = false; started = true;
+      clearing = false; clearingRows = [];
       lastDrop = performance.now();
       updateStats();
       hideOverlay();
       spawn();
+      Audio.startBgm();
     }
 
     function endGame() {
       gameOver = true; started = false;
+      Audio.stopBgm();
+      Audio.play("over");
       if (score > highscore) {
         highscore = score;
         try { localStorage.setItem("tetris_high", String(highscore)); } catch (e) {}
@@ -347,12 +477,12 @@
 
     // ---------- 操作 ----------
     function move(dx) {
-      if (!started || gameOver || paused) return;
+      if (!started || gameOver || paused || clearing) return;
       current.x += dx;
       if (collides(current)) current.x -= dx;
     }
     function softDrop() {
-      if (!started || gameOver || paused) return;
+      if (!started || gameOver || paused || clearing) return;
       if (moveDown()) score += 1;
     }
     function moveDown() {
@@ -361,18 +491,20 @@
       return true;
     }
     function hardDrop() {
-      if (!started || gameOver || paused) return;
+      if (!started || gameOver || paused || clearing) return;
       let dist = 0;
       while (!collides({ ...current, y: current.y + 1 })) { current.y += 1; dist++; }
       score += dist * 2;
+      Audio.play("drop");
       lock();
     }
     function rotate(dir) {
-      if (!started || gameOver || paused) return;
+      if (!started || gameOver || paused || clearing) return;
       if (current.type === "O") return;
       const rotated = rotateMatrix(current.matrix, dir);
       const prev = current.matrix;
       current.matrix = rotated;
+      let didRotate = true;
       // 简单 wall kick：尝试左右平移各 1-2 格
       if (collides(current)) {
         const kicks = [1, -1, 2, -2];
@@ -382,13 +514,12 @@
           if (!collides(current)) { ok = true; break; }
           current.x -= k;
         }
-        if (!ok) {
-          current.matrix = prev;
-        }
+        if (!ok) { current.matrix = prev; didRotate = false; }
       }
+      if (didRotate) Audio.play("rotate");
     }
     function holdPiece() {
-      if (!started || gameOver || paused || !canHold) return;
+      if (!started || gameOver || paused || clearing || !canHold) return;
       canHold = false;
       const t = current.type;
       if (held) current = makePiece(held);
@@ -398,6 +529,7 @@
       current.x = Math.floor((COLS - current.matrix[0].length) / 2);
       current.y = current.type === "I" ? -1 : 0;
       if (collides(current)) { current = makePiece(t); }
+      Audio.play("hold");
       draw();
     }
 
@@ -406,26 +538,34 @@
         if (y < 0) { endGame(); return; }
         board[y][x] = current.type;
       }
-      clearLines();
-      spawn();
+      current = null;              // 已固定，等待消行 / 生成
+      const full = [];
+      for (let y = 0; y < ROWS; y++) if (board[y].every(c => c)) full.push(y);
+      if (full.length) {
+        clearing = true;
+        clearingRows = full;
+        clearingDone = performance.now() + CLEAR_MS;
+        Audio.play("clear");
+      } else {
+        spawn();
+      }
     }
 
-    function clearLines() {
-      let cleared = 0;
-      for (let y = ROWS - 1; y >= 0; y--) {
-        if (board[y].every(c => c)) {
-          board.splice(y, 1);
-          board.unshift(Array(COLS).fill(null));
-          cleared++;
-          y++; // 重新检查当前行
-        }
+    function finishClear() {
+      const rows = clearingRows.slice().sort((a, b) => b - a);
+      for (const y of rows) {
+        board.splice(y, 1);
+        board.unshift(Array(COLS).fill(null));
       }
-      if (cleared) {
-        score += LINE_SCORE[cleared] * level;
-        lines += cleared;
-        level = Math.floor(lines / 10) + 1;
-        updateStats();
-      }
+      const n = rows.length;
+      score += LINE_SCORE[n] * level;
+      lines += n;
+      const newLevel = Math.floor(lines / 10) + 1;
+      if (newLevel > level) { level = newLevel; Audio.play("level"); }
+      updateStats();
+      clearing = false;
+      clearingRows = [];
+      spawn();
     }
 
     // ---------- 渲染 ----------
@@ -458,6 +598,14 @@
       for (let y = 0; y < ROWS; y++)
         for (let x = 0; x < COLS; x++)
           if (board[y][x]) drawCell(ctx, x, y, board[y][x], CELL);
+
+      // 消行闪烁特效（整行白闪后消失）
+      if (clearing) {
+        const el = performance.now() - (clearingDone - CLEAR_MS);
+        const on = Math.floor(el / 90) % 2 === 0;
+        ctx.fillStyle = on ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.12)";
+        for (const y of clearingRows) ctx.fillRect(0, y * CELL, canvas.width, CELL);
+      }
 
       if (current && started && !gameOver) {
         const ghost = ghostOf(current);
@@ -532,17 +680,21 @@
     function togglePause() {
       if (!started || gameOver) return;
       paused = !paused;
-      if (paused) showOverlay("已暂停", "按 P 继续", "继续");
-      else { hideOverlay(); lastDrop = performance.now(); }
+      if (paused) { showOverlay("已暂停", "按 P 继续", "继续"); Audio.stopBgm(); }
+      else { hideOverlay(); lastDrop = performance.now(); Audio.startBgm(); }
     }
 
     // ---------- 主循环 ----------
     function loop(now) {
       if (started && !paused && !gameOver) {
-        const g = gravityFor(level);
-        if (now - lastDrop >= g) {
-          moveDown();
-          lastDrop = now;
+        if (clearing) {
+          if (now >= clearingDone) finishClear();
+        } else {
+          const g = gravityFor(level);
+          if (now - lastDrop >= g) {
+            moveDown();
+            lastDrop = now;
+          }
         }
       }
       draw();
@@ -551,6 +703,7 @@
 
     // ---------- 事件 ----------
     document.addEventListener("keydown", e => {
+      Audio.ensure();
       const k = e.key;
       if (["ArrowLeft","ArrowRight","ArrowDown","ArrowUp"," ","Spacebar","z","Z","x","X","c","C","p","P","r","R"].includes(k) ||
           e.code === "Space" || e.code.startsWith("Arrow")) {
@@ -571,10 +724,18 @@
     });
 
     overlayBtn.addEventListener("click", () => {
-      if (started && paused) { paused = false; hideOverlay(); lastDrop = performance.now(); }
+      Audio.ensure();
+      if (started && paused) { paused = false; hideOverlay(); lastDrop = performance.now(); Audio.startBgm(); }
       else startGame();
     });
     document.getElementById("restart-btn").addEventListener("click", startGame);
+    const muteBtn = document.getElementById("mute-btn");
+    muteBtn.addEventListener("click", () => {
+      Audio.ensure();
+      const m = Audio.isMuted();
+      Audio.setMuted(!m);
+      muteBtn.textContent = m ? "音效：开" : "音效：关";
+    });
 
     // 触屏按钮（桌面隐藏，移动端显示）
     function touchBtn(label, fn) {
