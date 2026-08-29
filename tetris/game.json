@@ -1,5 +1,5 @@
 {
-  "deviceOrientation": "auto",
+  "deviceOrientation": "portrait",
   "showStatusBar": false,
   "networkTimeout": {
     "request": 10000,
