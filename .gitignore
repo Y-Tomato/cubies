@@ -1,0 +1,3 @@
+# 微信开发者工具误在仓库根目录生成的配置（真正的项目在 tetris/ 子目录）
+/project.config.json
+/project.private.config.json
