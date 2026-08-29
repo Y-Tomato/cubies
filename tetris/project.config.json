@@ -1,46 +1,27 @@
 {
-  "description": "俄罗斯方块小游戏 - 适配移动端与PC端微信小程序",
+  "description": "俄罗斯方块小游戏 - 微信小游戏",
   "packOptions": {
     "ignore": [],
     "include": []
   },
   "setting": {
     "es6": true,
-    "enhance": true,
-    "postcss": true,
     "minified": true,
     "urlCheck": false,
-    "coverView": true,
-    "lazyloadPlaceholderEnable": false,
-    "preloadBackgroundData": false,
-    "autoAudits": false,
-    "checkInvalidKey": true,
-    "checkSiteMap": true,
+    "uglifyFileName": false,
     "uploadWithSourceMap": true,
     "compileHotReLoad": true,
     "useStaticServer": true,
-    "compileWorklet": false,
-    "uglifyFileName": false,
-    "packNpmManually": false,
-    "packNpmRelationList": [],
-    "minifyWXSS": true,
-    "minifyWXML": true,
-    "localPlugins": false,
-    "disableUseStrict": false,
-    "useCompilerPlugins": false,
-    "condition": false,
     "babelSetting": {
       "ignore": [],
       "disablePlugins": [],
       "outputPath": ""
     }
   },
-  "compileType": "miniprogram",
+  "compileType": "game",
   "libVersion": "3.0.0",
   "appid": "touristappid",
   "projectname": "tetris",
   "condition": {},
-  "simulatorPluginLibVersion": {},
-  "isGameTourist": false,
   "editorSetting": {}
 }

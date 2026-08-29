@@ -1,12 +1,12 @@
-// 音频管理（单例）：音效 + 背景音乐
+// 音频管理（单例）：音效 + 背景音乐（微信小游戏版）
 const SFX_FILES = {
-  click: '/audio/click.wav',
-  clear: '/audio/clear.wav',
-  drop: '/audio/drop.wav',
-  rotate: '/audio/rotate.wav',
-  hold: '/audio/hold.wav',
-  level: '/audio/level.wav',
-  over: '/audio/over.wav'
+  click: 'audio/click.wav',
+  clear: 'audio/clear.wav',
+  drop: 'audio/drop.wav',
+  rotate: 'audio/rotate.wav',
+  hold: 'audio/hold.wav',
+  level: 'audio/level.wav',
+  over: 'audio/over.wav'
 };
 
 class AudioManager {
@@ -67,7 +67,7 @@ class AudioManager {
   playBgm() {
     if (!this.bgmOn) return;
     if (!this.bgm) {
-      this.bgm = this._create('/audio/bgm.wav', 0.5);
+      this.bgm = this._create('audio/bgm.wav', 0.5);
       this.bgm.loop = true;
     }
     if (!this._bgmPlaying) {
