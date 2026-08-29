@@ -80,11 +80,15 @@ function drawText(text, x, y, size, color, weight, align) {
 
 function drawButton(b, o) {
   o = o || {};
-  const bg = o.bg || PANEL;
-  const border = o.border === undefined ? BORDER : o.border;
+  const disabled = !!o.disabled;
+  const bg = disabled ? 'rgba(255,255,255,0.03)' : (o.bg || PANEL);
+  const border = disabled ? 'rgba(255,255,255,0.08)' : (o.border === undefined ? BORDER : o.border);
   const r = o.radius != null ? o.radius : 10;
   fillRoundRect(b.x, b.y, b.w, b.h, r, bg, border);
-  if (o.label) drawText(o.label, b.x + b.w / 2, b.y + b.h / 2, o.fontSize || 16, o.color || TEXT, o.weight || 400);
+  if (o.label) {
+    const color = disabled ? 'rgba(255,255,255,0.28)' : (o.color || TEXT);
+    drawText(o.label, b.x + b.w / 2, b.y + b.h / 2, o.fontSize || 16, color, o.weight || 400);
+  }
 }
 
 function drawSwitch(sw, on) {
@@ -345,8 +349,11 @@ function renderGame() {
   drawText('暂存', layout.holdLabel.x, layout.holdLabel.y, 11, MUTED);
   drawMiniInBox(layout.hold, game.held);
 
-  // 触控按钮
-  for (const c of layout.controlButtons) drawButton(c, { label: c.label, fontSize: 22 });
+  // 触控按钮（暂存每块限用一次，用完后置灰）
+  for (const c of layout.controlButtons) {
+    const disabled = c.action === 'hold' && !game.canHold;
+    drawButton(c, { label: c.label, fontSize: 22, disabled });
+  }
 
   renderModal();
 }
