@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/game/game"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#0f1420",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "俄罗斯方块",
+    "backgroundColor": "#0f1420",
+    "backgroundTextStyle": "light"
+  },
+  "sitemapLocation": "sitemap.json"
+}

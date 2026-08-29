@@ -1,0 +1,58 @@
+<view class="page">
+  <view class="topbar">
+    <view class="tbtn" hover-class="tbtn-hover" bindtap="onBack">‹</view>
+    <view class="score-box">
+      <text class="score">{{score}}</text>
+      <text class="meta">{{level}}级 · {{lines}}行</text>
+    </view>
+    <view class="tbtn" hover-class="tbtn-hover" bindtap="onToggleBgm">{{bgmOn ? '🔊' : '🔇'}}</view>
+    <view class="tbtn" hover-class="tbtn-hover" bindtap="onToggleSfx">{{sfxOn ? '🔔' : '🔕'}}</view>
+    <view class="tbtn" hover-class="tbtn-hover" bindtap="onTogglePause">{{paused ? '▶' : '⏸'}}</view>
+  </view>
+
+  <view class="board-area">
+    <canvas type="2d" id="board" class="board-canvas"></canvas>
+  </view>
+
+  <view class="preview-bar">
+    <view class="preview">
+      <text class="preview-label">下一个</text>
+      <canvas type="2d" id="next" class="mini next"></canvas>
+    </view>
+    <view class="preview">
+      <text class="preview-label">暂存</text>
+      <canvas type="2d" id="hold" class="mini hold"></canvas>
+    </view>
+  </view>
+
+  <view class="controls">
+    <view class="cluster">
+      <view class="cbtn" hover-class="cbtn-hover" data-action="left"
+            bindtouchstart="onControlStart" bindtouchend="onControlEnd" bindtouchcancel="onControlEnd">◀</view>
+      <view class="cbtn" hover-class="cbtn-hover" data-action="down"
+            bindtouchstart="onControlStart" bindtouchend="onControlEnd" bindtouchcancel="onControlEnd">▼</view>
+      <view class="cbtn" hover-class="cbtn-hover" data-action="right"
+            bindtouchstart="onControlStart" bindtouchend="onControlEnd" bindtouchcancel="onControlEnd">▶</view>
+    </view>
+    <view class="cluster">
+      <view class="cbtn" hover-class="cbtn-hover" data-action="rotate"
+            bindtouchstart="onControlStart" bindtouchend="onControlEnd" bindtouchcancel="onControlEnd">↻</view>
+      <view class="cbtn" hover-class="cbtn-hover" data-action="harddrop"
+            bindtouchstart="onControlStart" bindtouchend="onControlEnd" bindtouchcancel="onControlEnd">⤓</view>
+      <view class="cbtn" hover-class="cbtn-hover" data-action="hold"
+            bindtouchstart="onControlStart" bindtouchend="onControlEnd" bindtouchcancel="onControlEnd">H</view>
+    </view>
+  </view>
+
+  <view class="modal" wx:if="{{modalShow}}">
+    <view class="modal-card">
+      <text class="modal-emoji">{{gameOver ? '💥' : (paused ? '⏸' : '🕹️')}}</text>
+      <text class="modal-title">{{modalTitle}}</text>
+      <text class="modal-sub">{{modalSub}}</text>
+      <view class="modal-btns">
+        <view class="btn" hover-class="btn-hover" bindtap="onModalPrimary">{{modalBtn}}</view>
+        <view class="btn ghost" hover-class="btn-hover" wx:if="{{modalGhost}}" bindtap="onModalGhost">{{modalGhost}}</view>
+      </view>
+    </view>
+  </view>
+</view>

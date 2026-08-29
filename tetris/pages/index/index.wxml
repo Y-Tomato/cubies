@@ -1,0 +1,40 @@
+<view class="page">
+  <view class="content">
+    <view class="hero">
+      <view class="logo">🕹️</view>
+      <text class="title">俄罗斯方块</text>
+      <text class="subtitle">TETRIS</text>
+    </view>
+
+    <view class="start-btn" hover-class="start-btn-hover" bindtap="onStart">
+      <text>▶ 开始游戏</text>
+    </view>
+
+    <view class="panel">
+      <view class="panel-title">设置</view>
+      <view class="setting-row">
+        <view class="setting-info">
+          <text class="setting-title">🎵 背景音乐</text>
+          <text class="setting-desc">循环播放 8-bit 旋律</text>
+        </view>
+        <switch checked="{{bgmOn}}" color="#4da3ff" bindchange="onToggleBgm" />
+      </view>
+      <view class="setting-row">
+        <view class="setting-info">
+          <text class="setting-title">🔔 音效</text>
+          <text class="setting-desc">旋转、消行、硬降等反馈</text>
+        </view>
+        <switch checked="{{sfxOn}}" color="#4da3ff" bindchange="onToggleSfx" />
+      </view>
+    </view>
+
+    <view class="panel">
+      <view class="panel-title">操作说明</view>
+      <view class="hint-line"><text>◀ ▶  左右移动 · ▼ 加速下落</text></view>
+      <view class="hint-line"><text>↻ 旋转 · ⤓ 硬降 · H 暂存</text></view>
+      <view class="hint-line"><text>⏸ 暂停 · 长按方向键可连续移动</text></view>
+    </view>
+
+    <view class="tip"><text>🏆 最高分：{{bestText}}</text></view>
+  </view>
+</view>
